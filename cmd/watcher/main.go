@@ -1,0 +1,82 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
+	"wim-service/internal/ftpwatcher"
+	"wim-service/internal/handler"
+)
+
+func main() {
+	ftpHost := getEnv("FTP_HOST", "72.61.213.6:21")
+	ftpUser := getEnv("FTP_USER", "ftpuser")
+	ftpPass := getEnv("FTP_PASS", "ftpsecret123")
+	ftpDir := getEnv("FTP_DIR", "/")
+	ftpInterval := getEnvInt("FTP_INTERVAL_SEC", 5)
+
+	minioEndpoint := getEnv("MINIO_ENDPOINT", "s3minio.activa.id")
+	minioAccess := getEnv("MINIO_ACCESS_KEY", "admin")
+	minioSecret := getEnv("MINIO_SECRET_KEY", "admin12345")
+	minioBucket := getEnv("MINIO_BUCKET", "anpr")
+	minioUseSSL := getEnvBool("MINIO_USE_SSL", true)
+
+	proc, err := handler.NewFileProcessor(
+		ftpDir,
+		minioEndpoint,
+		minioAccess,
+		minioSecret,
+		minioBucket,
+		minioUseSSL,
+	)
+	if err != nil {
+		log.Fatal("init processor:", err)
+	}
+
+	w := ftpwatcher.New(
+		ftpHost,
+		ftpUser,
+		ftpPass,
+		ftpDir,
+		time.Duration(ftpInterval)*time.Second,
+		proc.HandleNewFile,
+	)
+
+	log.Println("WIM FTP watcher started")
+	ctx := context.Background()
+	if err := w.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func getEnv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func getEnvInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		i, err := strconv.Atoi(v)
+		if err == nil {
+			return i
+		}
+	}
+	return def
+}
+
+func getEnvBool(key string, def bool) bool {
+	if v := os.Getenv(key); v != "" {
+		switch v {
+		case "1", "true", "TRUE":
+			return true
+		case "0", "false", "FALSE":
+			return false
+		}
+	}
+	return def
+}
