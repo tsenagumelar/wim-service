@@ -9,7 +9,17 @@ import (
 
 	"wim-service/internal/ftpwatcher"
 	"wim-service/internal/handler"
+
+	"github.com/joho/godotenv"
 )
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("[ENV] .env file not found, using system environment")
+	} else {
+		log.Println("[ENV] .env file loaded successfully")
+	}
+}
 
 func main() {
 	ftpHost := getEnv("FTP_HOST", "72.61.213.6:21")

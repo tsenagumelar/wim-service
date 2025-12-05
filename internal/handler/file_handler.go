@@ -2,18 +2,33 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"path"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jlaffaye/ftp"
+	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+func init() {
+	// Load .env file if exists
+	if err := godotenv.Load(); err != nil {
+		log.Println("[ENV] .env file not found, using system environment")
+	} else {
+		log.Println("[ENV] .env file loaded successfully")
+	}
+}
 
 type ANPRMetadata struct {
 	Plate      string
@@ -58,6 +73,33 @@ type FileProcessor struct {
 	RemoteDir string
 	Minio     *minio.Client
 	Bucket    string
+}
+
+var (
+	db     *sql.DB
+	dbOnce sync.Once
+)
+
+func getDB() (*sql.DB, error) {
+	var err error
+	dbOnce.Do(func() {
+		dsn := os.Getenv("DATABASE_URL")
+		if dsn == "" {
+			err = fmt.Errorf("DATABASE_URL is not set")
+			return
+		}
+
+		db, err = sql.Open("pgx", dsn)
+		if err != nil {
+			return
+		}
+
+		// optional: tune a bit
+		db.SetMaxOpenConns(5)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(30 * time.Minute)
+	})
+	return db, err
 }
 
 func NewFileProcessor(remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
@@ -125,6 +167,13 @@ func (p *FileProcessor) HandleNewFile(ctx context.Context, c *ftp.ServerConn, na
 	}
 	if err := p.uploadImage(ctx, c, plateImg, plateObj); err != nil {
 		log.Println("[HANDLER] upload plate img error:", err)
+		return false
+	}
+
+	// insert ke database
+	if err := p.insertANPRRecord(ctx, meta, datePrefix, xmlObj, fullObj, plateObj); err != nil {
+		log.Println("[HANDLER] insert DB error:", err)
+		// gagal insert -> jangan hapus dari FTP supaya bisa diproses ulang
 		return false
 	}
 
@@ -248,5 +297,72 @@ func (p *FileProcessor) deleteFTP(c *ftp.ServerConn, names []string) error {
 			return fmt.Errorf("delete %s: %w", fp, err)
 		}
 	}
+	return nil
+}
+
+func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata, dateFolder, xmlObj, fullObj, plateObj string) error {
+	dbConn, err := getDB()
+	if err != nil {
+		return fmt.Errorf("getDB: %w", err)
+	}
+
+	// parse confidence (string -> float)
+	var conf sql.NullFloat64
+	if meta.Confidence != "" {
+		if f, err := strconv.ParseFloat(meta.Confidence, 64); err == nil {
+			conf.Valid = true
+			conf.Float64 = f
+		}
+	}
+
+	// parse frametime ke timestamptz (layout sesuai XML: 2025.12.01 14:06:27.946)
+	var capturedAt sql.NullTime
+	if meta.FrameTime != "" {
+		if t, err := time.Parse("2006.01.02 15:04:05.000", meta.FrameTime); err == nil {
+			capturedAt.Valid = true
+			capturedAt.Time = t
+		}
+	}
+
+	query := `
+	INSERT INTO public.transact_anpr_capture
+		(external_id, plate_no, confidence, captured_at,
+		 location_code, camera_id,
+		 minio_bucket, minio_date_folder,
+		 minio_xml_object, minio_full_image_object, minio_plate_image_object)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+	ON CONFLICT (external_id) DO UPDATE SET
+		plate_no = EXCLUDED.plate_no,
+		confidence = EXCLUDED.confidence,
+		captured_at = EXCLUDED.captured_at,
+		location_code = EXCLUDED.location_code,
+		camera_id = EXCLUDED.camera_id,
+		minio_bucket = EXCLUDED.minio_bucket,
+		minio_date_folder = EXCLUDED.minio_date_folder,
+		minio_xml_object = EXCLUDED.minio_xml_object,
+		minio_full_image_object = EXCLUDED.minio_full_image_object,
+		minio_plate_image_object = EXCLUDED.minio_plate_image_object,
+		updated_date = now();
+	`
+
+	_, err = dbConn.ExecContext(
+		ctx,
+		query,
+		meta.ID,
+		meta.Plate,
+		conf,
+		capturedAt,
+		meta.Location,
+		meta.CameraID,
+		p.Bucket,
+		dateFolder,
+		xmlObj,
+		fullObj,
+		plateObj,
+	)
+	if err != nil {
+		return fmt.Errorf("exec insert: %w", err)
+	}
+
 	return nil
 }

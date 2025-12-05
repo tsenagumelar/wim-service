@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -140,6 +141,11 @@ func (p *AxleProcessor) HandleNewFileAXLE(ctx context.Context, c *ftp.ServerConn
 		return false
 	}
 
+	if err := p.insertAxleRecord(ctx, meta, datePrefix, xmlObj, imgObj); err != nil {
+		log.Println("[AXLE] insert DB error:", err)
+		return false
+	}
+
 	// semua sudah ke-upload → hapus dari FTP
 	if err := p.deleteFTP(c, []string{name, imgName}); err != nil {
 		log.Println("[AXLE] delete ftp error:", err)
@@ -254,6 +260,65 @@ func (p *AxleProcessor) deleteFTP(c *ftp.ServerConn, names []string) error {
 		if err := c.Delete(fp); err != nil {
 			return fmt.Errorf("delete %s: %w", fp, err)
 		}
+	}
+	return nil
+}
+
+func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata, dateFolder, xmlObj, imgObj string) error {
+	dbConn, err := getDB()
+	if err != nil {
+		return fmt.Errorf("getDB: %w", err)
+	}
+
+	var capturedAt sql.NullTime
+	if meta.FrameTime != "" {
+		if t, err := time.Parse("2006.01.02 15:04:05.000", meta.FrameTime); err == nil {
+			capturedAt.Valid = true
+			capturedAt.Time = t
+		}
+	}
+
+	query := `
+      INSERT INTO public.transact_axle_capture
+      (external_id, plate_no, captured_at, camera_id,
+       length_mm, total_wheels, total_axles, vehicle_category, vehicle_body_type,
+       minio_bucket, minio_date_folder, minio_xml_object, minio_image_object)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ON CONFLICT (external_id) DO UPDATE SET
+       plate_no = EXCLUDED.plate_no,
+       captured_at = EXCLUDED.captured_at,
+       camera_id = EXCLUDED.camera_id,
+       length_mm = EXCLUDED.length_mm,
+       total_wheels = EXCLUDED.total_wheels,
+       total_axles = EXCLUDED.total_axles,
+       vehicle_category = EXCLUDED.vehicle_category,
+       vehicle_body_type = EXCLUDED.vehicle_body_type,
+       minio_bucket = EXCLUDED.minio_bucket,
+       minio_date_folder = EXCLUDED.minio_date_folder,
+       minio_xml_object = EXCLUDED.minio_xml_object,
+       minio_image_object = EXCLUDED.minio_image_object,
+       updated_date = now();
+      `
+
+	_, err = dbConn.ExecContext(
+		ctx,
+		query,
+		meta.ID,
+		meta.Plate,
+		capturedAt,
+		meta.CameraID,
+		meta.Length,
+		meta.NWheels,
+		meta.NAxles,
+		meta.Category,
+		meta.BodyType,
+		p.Bucket,
+		dateFolder,
+		xmlObj,
+		imgObj,
+	)
+	if err != nil {
+		return fmt.Errorf("exec insert: %w", err)
 	}
 	return nil
 }
