@@ -7,28 +7,15 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jlaffaye/ftp"
-	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
-
-func init() {
-	// Load .env file if exists
-	if err := godotenv.Load(); err != nil {
-		log.Println("[ENV] .env file not found, using system environment")
-	} else {
-		log.Println("[ENV] .env file loaded successfully")
-	}
-}
 
 type ANPRMetadata struct {
 	Plate      string
@@ -70,39 +57,13 @@ type xmlResult struct {
 }
 
 type FileProcessor struct {
+	DB        *sql.DB
 	RemoteDir string
 	Minio     *minio.Client
 	Bucket    string
 }
 
-var (
-	db     *sql.DB
-	dbOnce sync.Once
-)
-
-func getDB() (*sql.DB, error) {
-	var err error
-	dbOnce.Do(func() {
-		dsn := os.Getenv("DATABASE_URL")
-		if dsn == "" {
-			err = fmt.Errorf("DATABASE_URL is not set")
-			return
-		}
-
-		db, err = sql.Open("pgx", dsn)
-		if err != nil {
-			return
-		}
-
-		// optional: tune a bit
-		db.SetMaxOpenConns(5)
-		db.SetMaxIdleConns(5)
-		db.SetConnMaxLifetime(30 * time.Minute)
-	})
-	return db, err
-}
-
-func NewFileProcessor(remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
+func NewFileProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -112,6 +73,7 @@ func NewFileProcessor(remoteDir, endpoint, accessKey, secretKey, bucket string, 
 	}
 
 	return &FileProcessor{
+		DB:        db,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -126,16 +88,16 @@ func (p *FileProcessor) HandleNewFile(ctx context.Context, c *ftp.ServerConn, na
 		return true
 	}
 
-	log.Println("[HANDLER] processing xml:", name)
+	log.Println("[ANPR] processing xml:", name)
 
 	meta, err := p.parseXML(ctx, c, name)
 	if err != nil {
-		log.Println("[HANDLER] parse xml error:", err)
+		log.Println("[ANPR] parse xml error:", err)
 		// kalau XML corrupt, anggap selesai supaya tidak infinite retry
 		return true
 	}
 
-	log.Printf("[HANDLER] plate=%s time=%s cam=%s conf=%s id=%s\n",
+	log.Printf("[ANPR] plate=%s time=%s cam=%s conf=%s id=%s\n",
 		meta.Plate, meta.FrameTime, meta.CameraID, meta.Confidence, meta.ID)
 
 	// Format tanggal hari ini -> 03122025 (ddMMyyyy)
@@ -144,7 +106,7 @@ func (p *FileProcessor) HandleNewFile(ctx context.Context, c *ftp.ServerConn, na
 	// cari file jpg yang match dengan nama xml
 	fullImg, plateImg, err := p.findImagesForXML(c, name)
 	if err != nil {
-		log.Println("[HANDLER] find images error:", err)
+		log.Println("[ANPR] find images error:", err)
 		// gambar belum siap -> nanti dicoba lagi
 		return false
 	}
@@ -156,35 +118,35 @@ func (p *FileProcessor) HandleNewFile(ctx context.Context, c *ftp.ServerConn, na
 
 	// upload XML
 	if err := p.uploadXML(ctx, c, name, xmlObj); err != nil {
-		log.Println("[HANDLER] upload xml error:", err)
+		log.Println("[ANPR] upload xml error:", err)
 		return false
 	}
 
 	// upload 2 image
 	if err := p.uploadImage(ctx, c, fullImg, fullObj); err != nil {
-		log.Println("[HANDLER] upload full img error:", err)
+		log.Println("[ANPR] upload full img error:", err)
 		return false
 	}
 	if err := p.uploadImage(ctx, c, plateImg, plateObj); err != nil {
-		log.Println("[HANDLER] upload plate img error:", err)
+		log.Println("[ANPR] upload plate img error:", err)
 		return false
 	}
 
 	// insert ke database
 	if err := p.insertANPRRecord(ctx, meta, datePrefix, xmlObj, fullObj, plateObj); err != nil {
-		log.Println("[HANDLER] insert DB error:", err)
+		log.Println("[ANPR] insert DB error:", err)
 		// gagal insert -> jangan hapus dari FTP supaya bisa diproses ulang
 		return false
 	}
 
 	// semua sukses -> hapus dari FTP
 	if err := p.deleteFTP(c, []string{name, fullImg, plateImg}); err != nil {
-		log.Println("[HANDLER] delete ftp error:", err)
+		log.Println("[ANPR] delete ftp error:", err)
 		// di tahap ini file sudah ada di MinIO, boleh dianggap selesai
 		return true
 	}
 
-	log.Println("[HANDLER] done id:", meta.ID)
+	log.Println("[ANPR] done id:", meta.ID)
 	return true
 }
 
@@ -268,7 +230,7 @@ func (p *FileProcessor) uploadXML(ctx context.Context, c *ftp.ServerConn, xmlNam
 		return fmt.Errorf("minio put xml: %w", err)
 	}
 
-	log.Println("[HANDLER] uploaded xml to minio:", objectName)
+	log.Println("[ANPR] uploaded xml to minio:", objectName)
 	return nil
 }
 
@@ -285,14 +247,14 @@ func (p *FileProcessor) uploadImage(ctx context.Context, c *ftp.ServerConn, ftpN
 	if err != nil {
 		return fmt.Errorf("minio put image: %w", err)
 	}
-	log.Println("[HANDLER] uploaded image to minio:", objectName)
+	log.Println("[ANPR] uploaded image to minio:", objectName)
 	return nil
 }
 
 func (p *FileProcessor) deleteFTP(c *ftp.ServerConn, names []string) error {
 	for _, n := range names {
 		fp := path.Join(p.RemoteDir, n)
-		log.Println("[HANDLER] delete ftp:", fp)
+		log.Println("[ANPR] delete ftp:", fp)
 		if err := c.Delete(fp); err != nil {
 			return fmt.Errorf("delete %s: %w", fp, err)
 		}
@@ -301,10 +263,6 @@ func (p *FileProcessor) deleteFTP(c *ftp.ServerConn, names []string) error {
 }
 
 func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata, dateFolder, xmlObj, fullObj, plateObj string) error {
-	dbConn, err := getDB()
-	if err != nil {
-		return fmt.Errorf("getDB: %w", err)
-	}
 
 	// parse confidence (string -> float)
 	var conf sql.NullFloat64
@@ -345,7 +303,7 @@ func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata
 		updated_date = now();
 	`
 
-	_, err = dbConn.ExecContext(
+	_, err := p.DB.ExecContext(
 		ctx,
 		query,
 		meta.ID,

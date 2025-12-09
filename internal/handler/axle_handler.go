@@ -77,12 +77,13 @@ type axleXML struct {
 // ===== Processor untuk folder AXLE =====
 
 type AxleProcessor struct {
+	DB        *sql.DB
 	RemoteDir string
 	Minio     *minio.Client
 	Bucket    string
 }
 
-func NewAxleProcessor(remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
+func NewAxleProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -92,6 +93,7 @@ func NewAxleProcessor(remoteDir, endpoint, accessKey, secretKey, bucket string, 
 	}
 
 	return &AxleProcessor{
+		DB:        db,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -265,11 +267,6 @@ func (p *AxleProcessor) deleteFTP(c *ftp.ServerConn, names []string) error {
 }
 
 func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata, dateFolder, xmlObj, imgObj string) error {
-	dbConn, err := getDB()
-	if err != nil {
-		return fmt.Errorf("getDB: %w", err)
-	}
-
 	var capturedAt sql.NullTime
 	if meta.FrameTime != "" {
 		if t, err := time.Parse("2006.01.02 15:04:05.000", meta.FrameTime); err == nil {
@@ -300,7 +297,7 @@ func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata
        updated_date = now();
       `
 
-	_, err = dbConn.ExecContext(
+	_, err := p.DB.ExecContext(
 		ctx,
 		query,
 		meta.ID,
