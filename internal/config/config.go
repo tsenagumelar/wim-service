@@ -44,6 +44,21 @@ type Config struct {
 	AxleMinIOSecret   string
 	AxleMinIOBucket   string
 	AxleMinIOUseSSL   bool
+
+	// Vehicle Dimension Detection Config
+	DimensionEnabled      bool    // Enable dimension detection
+	DimensionModelPath    string  // Path to detection model (if using ML model)
+	DimensionThreshold    float64 // Detection confidence threshold
+
+	// Camera Calibration Parameters
+	CameraFocalLength     float64 // Focal length in pixels
+	CameraImageWidth      int     // Image width in pixels
+	CameraImageHeight     int     // Image height in pixels
+	CameraHeight          float64 // Camera height from ground in meters
+	CameraTiltAngle       float64 // Camera tilt angle in degrees
+	CameraRefPixelLength  int     // Reference object length in pixels
+	CameraRefRealLength   float64 // Reference object length in meters
+	CameraRefDistance     float64 // Distance to reference object in meters
 }
 
 func Load() (*Config, error) {
@@ -84,6 +99,21 @@ func Load() (*Config, error) {
 		AxleMinIOSecret:   getEnv("AXLE_MINIO_SECRET_KEY", "admin12345"),
 		AxleMinIOBucket:   getEnv("AXLE_MINIO_BUCKET", "axle"),
 		AxleMinIOUseSSL:   getEnvBool("AXLE_MINIO_USE_SSL", true),
+
+		// Vehicle Dimension Detection
+		DimensionEnabled:   getEnvBool("DIMENSION_ENABLED", false),
+		DimensionModelPath: getEnv("DIMENSION_MODEL_PATH", ""),
+		DimensionThreshold: getEnvFloat("DIMENSION_THRESHOLD", 0.5),
+
+		// Camera Calibration (default values - should be calibrated)
+		CameraFocalLength:    getEnvFloat("CAMERA_FOCAL_LENGTH", 1000.0),
+		CameraImageWidth:     getEnvInt("CAMERA_IMAGE_WIDTH", 1920),
+		CameraImageHeight:    getEnvInt("CAMERA_IMAGE_HEIGHT", 1080),
+		CameraHeight:         getEnvFloat("CAMERA_HEIGHT_METERS", 6.0),
+		CameraTiltAngle:      getEnvFloat("CAMERA_TILT_ANGLE", 30.0),
+		CameraRefPixelLength: getEnvInt("CAMERA_REF_PIXEL_LENGTH", 200),
+		CameraRefRealLength:  getEnvFloat("CAMERA_REF_REAL_LENGTH", 5.0),
+		CameraRefDistance:    getEnvFloat("CAMERA_REF_DISTANCE", 10.0),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -140,6 +170,16 @@ func getEnvBool(key string, def bool) bool {
 			return true
 		case "0", "false", "FALSE":
 			return false
+		}
+	}
+	return def
+}
+
+func getEnvFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		f, err := strconv.ParseFloat(v, 64)
+		if err == nil {
+			return f
 		}
 	}
 	return def

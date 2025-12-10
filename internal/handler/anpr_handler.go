@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -57,10 +58,16 @@ type xmlResult struct {
 }
 
 type FileProcessor struct {
-	DB        *sql.DB
-	RemoteDir string
-	Minio     *minio.Client
-	Bucket    string
+	DB               *sql.DB
+	RemoteDir        string
+	Minio            *minio.Client
+	Bucket           string
+	DimensionHandler *DimensionHandler // Optional: for vehicle dimension detection
+}
+
+// SetDimensionHandler sets the dimension handler for processing vehicle dimensions
+func (p *FileProcessor) SetDimensionHandler(handler *DimensionHandler) {
+	p.DimensionHandler = handler
 }
 
 func NewFileProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
@@ -137,6 +144,17 @@ func (p *FileProcessor) HandleNewFile(ctx context.Context, c *ftp.ServerConn, na
 		log.Println("[ANPR] insert DB error:", err)
 		// gagal insert -> jangan hapus dari FTP supaya bisa diproses ulang
 		return false
+	}
+
+	// Process vehicle dimensions if handler is set
+	if p.DimensionHandler != nil {
+		log.Printf("[ANPR] Processing vehicle dimensions for plate: %s", meta.Plate)
+		// Download full image temporarily for dimension processing
+		// In production, you might want to download from MinIO or keep FTP file temporarily
+		if err := p.processDimensions(ctx, meta, fullObj); err != nil {
+			log.Printf("[ANPR] Warning: Failed to process dimensions: %v", err)
+			// Don't fail the whole process if dimension detection fails
+		}
 	}
 
 	// semua sukses -> hapus dari FTP
@@ -321,6 +339,46 @@ func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata
 	if err != nil {
 		return fmt.Errorf("exec insert: %w", err)
 	}
+
+	return nil
+}
+
+// processDimensions downloads the image from MinIO and processes vehicle dimensions
+func (p *FileProcessor) processDimensions(ctx context.Context, meta *ANPRMetadata, objectName string) error {
+	// Download image from MinIO to temporary file
+	tmpFile := fmt.Sprintf("/tmp/anpr_%s.jpg", meta.ID)
+
+	obj, err := p.Minio.GetObject(ctx, p.Bucket, objectName, minio.GetObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("get object from minio: %w", err)
+	}
+	defer obj.Close()
+
+	// Save to temporary file
+	outFile, err := os.Create(tmpFile)
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer outFile.Close()
+
+	if _, err := io.Copy(outFile, obj); err != nil {
+		return fmt.Errorf("copy to temp file: %w", err)
+	}
+
+	// Process dimensions
+	result, err := p.DimensionHandler.ProcessANPRImage(tmpFile, meta.Plate, meta.ID)
+	if err != nil {
+		return fmt.Errorf("process dimensions: %w", err)
+	}
+
+	log.Printf("[ANPR] Dimension processing complete: found %d vehicle(s)", result.VehicleCount)
+	for i, dims := range result.Dimensions {
+		log.Printf("[ANPR] Vehicle %d: L=%.2fm W=%.2fm H=%.2fm (confidence: %.2f)",
+			i+1, dims.LengthMeters, dims.WidthMeters, dims.HeightMeters, dims.Confidence)
+	}
+
+	// Clean up temp file
+	os.Remove(tmpFile)
 
 	return nil
 }

@@ -25,6 +25,32 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create dimension handler if enabled
+	var dimensionHandler *handler.DimensionHandler
+	if cfg.DimensionEnabled {
+		log.Println("[MAIN] Vehicle dimension detection is ENABLED")
+		dimensionHandler, err = handler.NewDimensionHandler(
+			cfg.DB,
+			cfg.DimensionModelPath,
+			cfg.DimensionThreshold,
+		)
+		if err != nil {
+			log.Fatal("[MAIN] Failed to create dimension handler:", err)
+		}
+
+		// Set camera calibration
+		calibration := cfg.GetCameraCalibration()
+		if err := dimensionHandler.SetCalibration(calibration); err != nil {
+			log.Fatal("[MAIN] Failed to set camera calibration:", err)
+		}
+		log.Println("[MAIN] Camera calibration:")
+		log.Printf("  Resolution: %dx%d", cfg.CameraImageWidth, cfg.CameraImageHeight)
+		log.Printf("  Height: %.2fm, Tilt: %.2f°", cfg.CameraHeight, cfg.CameraTiltAngle)
+		log.Printf("  Reference: %dpx = %.2fm at %.2fm", cfg.CameraRefPixelLength, cfg.CameraRefRealLength, cfg.CameraRefDistance)
+	} else {
+		log.Println("[MAIN] Vehicle dimension detection is DISABLED")
+	}
+
 	// Create ANPR processor
 	anprProcessor, err := handler.NewFileProcessor(
 		cfg.DB,
@@ -37,6 +63,11 @@ func main() {
 	)
 	if err != nil {
 		log.Fatal("[MAIN] Failed to create ANPR processor:", err)
+	}
+
+	// Set dimension handler for ANPR processor if enabled
+	if dimensionHandler != nil {
+		anprProcessor.SetDimensionHandler(dimensionHandler)
 	}
 
 	// Create AXLE processor

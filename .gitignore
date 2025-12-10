@@ -1,0 +1,59 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+test_dimension.go
+test_image.jpg
+test_image.jpeg
+test_image.png
+*.jpg
+*.jpeg
+*.png
+
+# Binaries
+wim-service
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/
+*.tmp
+*.log
+
+# Build output
+/bin/
+/build/
+/dist/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
