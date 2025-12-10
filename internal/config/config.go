@@ -14,7 +14,8 @@ import (
 
 type Config struct {
 	// Site Identification (Multi-Site Support)
-	SiteID       string // Unique identifier for this site (e.g., "SITE001", "JKT-TOLL-01")
+	SiteCode     string // Site code from master_site.code (e.g., "SITE001", "JKT-TOLL-01")
+	SiteUUID     string // UUID from master_site.id (looked up from database)
 	SiteName     string // Human-readable site name (e.g., "Jakarta Toll Gate 1")
 	SiteLocation string // Location description (e.g., "Jakarta", "Surabaya")
 	SiteRegion   string // Region/Area (e.g., "JABODETABEK", "JATIM")
@@ -86,7 +87,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		// Site Identification
-		SiteID:       getEnv("SITE_ID", "SITE001"),
+		SiteCode:     getEnv("SITE_CODE", "SITE001"),
 		SiteName:     getEnv("SITE_NAME", "Default Site"),
 		SiteLocation: getEnv("SITE_LOCATION", "Unknown"),
 		SiteRegion:   getEnv("SITE_REGION", "DEFAULT"),
@@ -171,7 +172,15 @@ func Load() (*Config, error) {
 	}
 
 	cfg.DB = db
-	log.Printf("[CONFIG] Database connection established for Site: %s (%s)", cfg.SiteID, cfg.SiteName)
+	log.Printf("[CONFIG] Database connection established for Site: %s (%s)", cfg.SiteCode, cfg.SiteName)
+
+	// Lookup site UUID from master_site table based on code
+	if err := cfg.loadSiteUUID(); err != nil {
+		log.Printf("[CONFIG] WARNING: Failed to lookup site UUID: %v", err)
+		log.Printf("[CONFIG] Make sure site code '%s' exists in master_site table", cfg.SiteCode)
+	} else {
+		log.Printf("[CONFIG] Site UUID loaded: %s", cfg.SiteUUID)
+	}
 
 	// Initialize central database connection if sync is enabled
 	if cfg.SyncEnabled && cfg.CentralDatabaseURL != "" {
@@ -194,6 +203,23 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// loadSiteUUID looks up the site UUID from master_site table based on site code
+func (cfg *Config) loadSiteUUID() error {
+	var siteUUID string
+	query := `SELECT id FROM public.master_site WHERE code = $1 AND is_deleted = false LIMIT 1`
+
+	err := cfg.DB.QueryRow(query, cfg.SiteCode).Scan(&siteUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("site code '%s' not found in master_site table", cfg.SiteCode)
+		}
+		return fmt.Errorf("failed to query master_site: %w", err)
+	}
+
+	cfg.SiteUUID = siteUUID
+	return nil
 }
 
 func getEnv(key, def string) string {

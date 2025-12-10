@@ -59,7 +59,7 @@ type xmlResult struct {
 
 type FileProcessor struct {
 	DB               *sql.DB
-	SiteID           string // Site identifier for multi-site deployment
+	SiteUUID         string // Site UUID from master_site.id
 	RemoteDir        string
 	Minio            *minio.Client
 	Bucket           string
@@ -71,7 +71,7 @@ func (p *FileProcessor) SetDimensionHandler(handler *DimensionHandler) {
 	p.DimensionHandler = handler
 }
 
-func NewFileProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
+func NewFileProcessor(db *sql.DB, siteUUID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -82,7 +82,7 @@ func NewFileProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secret
 
 	return &FileProcessor{
 		DB:        db,
-		SiteID:    siteID,
+		SiteUUID:  siteUUID,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -328,7 +328,7 @@ func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata
 	_, err := p.DB.ExecContext(
 		ctx,
 		query,
-		p.SiteID, // NEW: Site identifier
+		p.SiteUUID, // Site UUID from master_site.id
 		meta.ID,
 		meta.Plate,
 		conf,

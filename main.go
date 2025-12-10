@@ -53,7 +53,7 @@ func main() {
 		log.Println("[MAIN] Vehicle dimension detection is ENABLED")
 		dimensionHandler, err = handler.NewDimensionHandler(
 			cfg.DB,
-			cfg.SiteID, // Site identifier for multi-site
+			cfg.SiteUUID, // Site UUID from master_site
 			cfg.DimensionModelPath,
 			cfg.DimensionThreshold,
 		)
@@ -74,10 +74,10 @@ func main() {
 		log.Println("[MAIN] Vehicle dimension detection is DISABLED")
 	}
 
-	// Create ANPR processor
+	// Create ANPR file processor
 	anprProcessor, err := handler.NewFileProcessor(
 		cfg.DB,
-		cfg.SiteID, // Site identifier for multi-site
+		cfg.SiteUUID, // Site UUID from master_site
 		cfg.ANPRFTPDir,
 		cfg.ANPRMinIOEndpoint,
 		cfg.ANPRMinIOAccess,
@@ -97,7 +97,7 @@ func main() {
 	// Create AXLE processor
 	axleProcessor, err := handler.NewAxleProcessor(
 		cfg.DB,
-		cfg.SiteID, // Site identifier
+		cfg.SiteUUID, // Site UUID from master_site
 		cfg.AxleFTPDir,
 		cfg.AxleMinIOEndpoint,
 		cfg.AxleMinIOAccess,

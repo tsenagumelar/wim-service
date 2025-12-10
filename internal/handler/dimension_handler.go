@@ -14,7 +14,7 @@ import (
 // DimensionHandler handles vehicle dimension processing
 type DimensionHandler struct {
 	DB               *sql.DB
-	SiteID           string // Site identifier for multi-site deployment
+	SiteUUID         string // Site UUID from master_site.id
 	DimensionService *vision.DimensionService
 	SaveResults      bool // Whether to save results to database
 }
@@ -30,12 +30,12 @@ type DimensionResult struct {
 }
 
 // NewDimensionHandler creates a new dimension handler
-func NewDimensionHandler(db *sql.DB, siteID, modelPath string, threshold float64) (*DimensionHandler, error) {
+func NewDimensionHandler(db *sql.DB, siteUUID, modelPath string, threshold float64) (*DimensionHandler, error) {
 	dimensionService := vision.NewDimensionService(modelPath, threshold)
 
 	return &DimensionHandler{
 		DB:               db,
-		SiteID:           siteID,
+		SiteUUID:         siteUUID,
 		DimensionService: dimensionService,
 		SaveResults:      true,
 	}, nil

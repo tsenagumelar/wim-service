@@ -279,7 +279,7 @@ INFO: Sync to Central: enabled
 
 ### Site Code Convention
 
-Recommended naming pattern untuk `SITE_ID`:
+Recommended naming pattern untuk `SITE_CODE`:
 
 ```
 [LOCATION]-[TYPE]-[NUMBER]
@@ -290,6 +290,13 @@ Examples:
 - BDG-TOLL-02    (Bandung, Toll Gate, Station 2)
 - MDN-WIM-MAIN   (Medan, WIM, Main Station)
 ```
+
+**Keuntungan menggunakan CODE (bukan UUID):**
+
+- Code konsisten dan bisa di-generate sendiri
+- Mudah dibaca dan diingat
+- UUID tetap di-lookup otomatis dari database
+- Tidak perlu hardcode UUID yang random
 
 ---
 
@@ -315,7 +322,7 @@ psql -d wim_new_site -f migrations/100_simple_multi_site.sql
 
 # 5. Configure site
 cat > .env << EOF
-SITE_ID=NEW-SITE-01
+SITE_CODE=NEW-SITE-01
 SITE_NAME=New Site Station 1
 SITE_LOCATION=New Location Address
 SITE_REGION=NewRegion

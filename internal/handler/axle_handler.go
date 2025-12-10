@@ -78,13 +78,13 @@ type axleXML struct {
 
 type AxleProcessor struct {
 	DB        *sql.DB
-	SiteID    string // Site identifier for multi-site deployment
+	SiteUUID  string // Site UUID from master_site.id
 	RemoteDir string
 	Minio     *minio.Client
 	Bucket    string
 }
 
-func NewAxleProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
+func NewAxleProcessor(db *sql.DB, siteUUID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -95,7 +95,7 @@ func NewAxleProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secret
 
 	return &AxleProcessor{
 		DB:        db,
-		SiteID:    siteID,
+		SiteUUID:  siteUUID,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -303,7 +303,7 @@ func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata
 	_, err := p.DB.ExecContext(
 		ctx,
 		query,
-		p.SiteID, // NEW: Site identifier
+		p.SiteUUID, // Site UUID from master_site.id
 		meta.ID,
 		meta.Plate,
 		capturedAt,
