@@ -45,12 +45,81 @@
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.24+ (for local development)
+- Docker & Docker Compose (for containerized deployment)
 - PostgreSQL database
 - MinIO server (optional)
 - FTP server dengan data ANPR/AXLE
 
-### Installation
+### Option 1: Portainer Stack Deployment (Recommended)
+
+**Prerequisites:**
+
+- Portainer sudah terinstall
+- PostgreSQL database sudah tersedia
+- MinIO storage sudah tersedia (optional)
+- FTP server sudah configured
+
+**Steps:**
+
+1. **Build dan Push Docker Image**
+
+```bash
+# Clone repository
+git clone https://github.com/tsenagumelar/wim-service.git
+cd wim-service
+
+# Build image dengan tag
+docker build -t tsenagumelar/wim-service:latest .
+
+# Push ke Docker Hub (atau private registry)
+docker push tsenagumelar/wim-service:latest
+
+# Atau dengan versioning
+docker build -t tsenagumelar/wim-service:v1.0.0 .
+docker push tsenagumelar/wim-service:v1.0.0
+```
+
+2. **Deploy di Portainer**
+
+- Login ke Portainer UI
+- Pilih **Stacks** → **Add Stack**
+- Nama stack: `wim-service`
+- Build method: **Web editor**
+- Copy isi file `portainer-stack.yml` ke editor
+- **PENTING:** Edit environment variables sesuai setup Anda:
+  - `DATABASE_URL` - connection string PostgreSQL Anda
+  - `JWT_SECRET` - secret key untuk JWT (min 32 karakter)
+  - `ANPR_FTP_*` - konfigurasi FTP server ANPR
+  - `AXLE_FTP_*` - konfigurasi FTP server AXLE
+  - `*_MINIO_*` - konfigurasi MinIO storage
+  - `CAMERA_*` - parameter kalibrasi camera
+- Klik **Deploy the stack**
+
+3. **Verifikasi Deployment**
+
+```bash
+# Check container logs di Portainer UI atau CLI
+docker logs wim-service
+
+# Test API endpoint
+curl http://localhost:3000/health
+
+# Response:
+# {"status":"ok","service":"wim-service"}
+```
+
+**Default credentials:**
+
+- Username: `admin`
+- Password: `admin123`
+
+**File yang dibutuhkan:**
+
+- `portainer-stack.yml` - Stack definition untuk Portainer
+- Docker image: `tsenagumelar/wim-service:latest`
+
+### Option 2: Local Development
 
 1. **Clone repository**
 
@@ -90,6 +159,33 @@ Output:
 [MAIN] Starting AXLE watcher...
 [MAIN] All services started successfully!
 ```
+
+### Option 3: Docker Compose (Development)
+
+Untuk development dengan PostgreSQL dan MinIO lokal:
+
+```bash
+# Clone repository
+git clone https://github.com/tsenagumelar/wim-service.git
+cd wim-service
+
+# Edit docker-compose.yml sesuai kebutuhan
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f wim-service
+
+# Stop services
+docker-compose down
+```
+
+**Services yang berjalan:**
+
+- PostgreSQL: `localhost:5432`
+- MinIO API: `localhost:9000`
+- MinIO Console: `localhost:9001`
+- WIM Service API: `localhost:3000`
 
 ---
 

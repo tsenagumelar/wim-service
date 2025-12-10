@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  wim-service:
+    image: taufansenagumelar/wim-service:latest
+    container_name: wim-service
+    ports:
+      - "3000:3000"
+    environment:
+      # Database - SESUAIKAN dengan PostgreSQL Anda
+      DATABASE_URL: "postgres://wim_user:wim_password_123@postgres:5432/wim_db?sslmode=disable"
+
+      # API Configuration
+      API_PORT: 3000
+      JWT_SECRET: "your-jwt-secret-key-min-32-chars-change-this"
+
+      # ANPR FTP Configuration - SESUAIKAN dengan FTP server Anda
+      ANPR_FTP_HOST: "192.168.1.100:21"
+      ANPR_FTP_USER: "anpr_user"
+      ANPR_FTP_PASS: "anpr_password"
+      ANPR_FTP_DIR: "/anpr_data/"
+      ANPR_FTP_INTERVAL_SEC: 5
+
+      # AXLE FTP Configuration - SESUAIKAN dengan FTP server Anda
+      AXLE_FTP_HOST: "192.168.1.101:21"
+      AXLE_FTP_USER: "axle_user"
+      AXLE_FTP_PASS: "axle_password"
+      AXLE_FTP_DIR: "/axle_data/"
+      AXLE_FTP_INTERVAL_SEC: 5
+
+      # ANPR MinIO Configuration - SESUAIKAN dengan MinIO Anda
+      ANPR_MINIO_ENDPOINT: "minio.example.com:9000"
+      ANPR_MINIO_ACCESS_KEY: "your_access_key"
+      ANPR_MINIO_SECRET_KEY: "your_secret_key"
+      ANPR_MINIO_BUCKET: "anpr-images"
+      ANPR_MINIO_USE_SSL: "true"
+
+      # AXLE MinIO Configuration - SESUAIKAN dengan MinIO Anda
+      AXLE_MINIO_ENDPOINT: "minio.example.com:9000"
+      AXLE_MINIO_ACCESS_KEY: "your_access_key"
+      AXLE_MINIO_SECRET_KEY: "your_secret_key"
+      AXLE_MINIO_BUCKET: "axle-data"
+      AXLE_MINIO_USE_SSL: "true"
+
+      # Vehicle Dimension Detection
+      DIMENSION_ENABLED: "true"
+      DIMENSION_THRESHOLD: 0.5
+      DIMENSION_MODEL_PATH: ""
+
+      # Camera Calibration - SESUAIKAN dengan setup camera Anda
+      CAMERA_IMAGE_WIDTH: 1920
+      CAMERA_IMAGE_HEIGHT: 1080
+      CAMERA_FOCAL_LENGTH: 1000.0
+      CAMERA_HEIGHT_METERS: 6.0
+      CAMERA_TILT_ANGLE: 30.0
+      CAMERA_REF_PIXEL_LENGTH: 1500
+      CAMERA_REF_REAL_LENGTH: 5.0
+      CAMERA_REF_DISTANCE: 15.0
+    restart: unless-stopped
+    networks:
+      - wim-network
+
+networks:
+  wim-network:
+    external: true

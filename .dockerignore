@@ -1,0 +1,20 @@
+# Ignore .env file
+.env
+
+# Ignore test files
+test_dimension.go
+*.jpg
+*.jpeg
+*.png
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore IDE
+.vscode
+.idea
+
+# Ignore docs (included in image)
+*.md
+!README.md
