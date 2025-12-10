@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"wim-service/internal/api"
+	"wim-service/internal/auth"
 	"wim-service/internal/config"
 	"wim-service/internal/ftpwatcher"
 	"wim-service/internal/handler"
@@ -24,6 +26,26 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Create default admin user if not exists
+	authService := auth.NewAuthService(cfg.DB, cfg.JWTSecret)
+	if err := authService.CreateUser("admin", "admin@wim.local", "admin123", "admin"); err != nil {
+		log.Printf("[MAIN] Note: %v (user might already exist)", err)
+	}
+
+	// Start API Server in goroutine
+	apiServer := api.NewServer(cfg.DB, cfg.JWTSecret)
+	go func() {
+		log.Println("[MAIN] Starting API Server...")
+		log.Printf("[MAIN] API Server: http://localhost:%s", cfg.APIPort)
+		log.Printf("[MAIN] Health check: http://localhost:%s/health", cfg.APIPort)
+		log.Printf("[MAIN] Login: POST http://localhost:%s/api/auth/login", cfg.APIPort)
+		log.Printf("[MAIN] Profile: GET http://localhost:%s/api/auth/profile", cfg.APIPort)
+		log.Println("[MAIN] Default credentials - username: admin, password: admin123")
+		if err := apiServer.Start(cfg.APIPort); err != nil {
+			log.Printf("[MAIN] API Server error: %v", err)
+		}
+	}()
 
 	// Create dimension handler if enabled
 	var dimensionHandler *handler.DimensionHandler
@@ -124,7 +146,15 @@ func main() {
 		}
 	}()
 
-	log.Println("[MAIN] Both watchers started. Press Ctrl+C to stop.")
+	log.Println("[MAIN] All services started successfully!")
+	log.Println("[MAIN] Services running:")
+	log.Printf("[MAIN]   - API Server: http://localhost:%s", cfg.APIPort)
+	log.Println("[MAIN]   - ANPR Watcher (background)")
+	log.Println("[MAIN]   - AXLE Watcher (background)")
+	if cfg.DimensionEnabled {
+		log.Println("[MAIN]   - Vehicle Dimension Detection (enabled)")
+	}
+	log.Println("[MAIN] Press Ctrl+C to stop all services.")
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
@@ -133,5 +163,11 @@ func main() {
 
 	log.Println("[MAIN] Shutting down gracefully...")
 	cancel()
+
+	// Shutdown API server
+	if err := apiServer.Shutdown(); err != nil {
+		log.Printf("[MAIN] Error shutting down API server: %v", err)
+	}
+
 	log.Println("[MAIN] Shutdown complete.")
 }

@@ -17,6 +17,10 @@ type Config struct {
 	DatabaseURL string
 	DB          *sql.DB
 
+	// API Config
+	APIPort   string
+	JWTSecret string
+
 	// ANPR FTP Config
 	ANPRFTPHost     string
 	ANPRFTPUser     string
@@ -46,19 +50,19 @@ type Config struct {
 	AxleMinIOUseSSL   bool
 
 	// Vehicle Dimension Detection Config
-	DimensionEnabled      bool    // Enable dimension detection
-	DimensionModelPath    string  // Path to detection model (if using ML model)
-	DimensionThreshold    float64 // Detection confidence threshold
+	DimensionEnabled   bool    // Enable dimension detection
+	DimensionModelPath string  // Path to detection model (if using ML model)
+	DimensionThreshold float64 // Detection confidence threshold
 
 	// Camera Calibration Parameters
-	CameraFocalLength     float64 // Focal length in pixels
-	CameraImageWidth      int     // Image width in pixels
-	CameraImageHeight     int     // Image height in pixels
-	CameraHeight          float64 // Camera height from ground in meters
-	CameraTiltAngle       float64 // Camera tilt angle in degrees
-	CameraRefPixelLength  int     // Reference object length in pixels
-	CameraRefRealLength   float64 // Reference object length in meters
-	CameraRefDistance     float64 // Distance to reference object in meters
+	CameraFocalLength    float64 // Focal length in pixels
+	CameraImageWidth     int     // Image width in pixels
+	CameraImageHeight    int     // Image height in pixels
+	CameraHeight         float64 // Camera height from ground in meters
+	CameraTiltAngle      float64 // Camera tilt angle in degrees
+	CameraRefPixelLength int     // Reference object length in pixels
+	CameraRefRealLength  float64 // Reference object length in meters
+	CameraRefDistance    float64 // Distance to reference object in meters
 }
 
 func Load() (*Config, error) {
@@ -71,6 +75,10 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		DatabaseURL: getEnv("DATABASE_URL", ""),
+
+		// API Config
+		APIPort:   getEnv("API_PORT", "3000"),
+		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 
 		// ANPR FTP
 		ANPRFTPHost:     getEnv("ANPR_FTP_HOST", "72.61.213.6:21"),
