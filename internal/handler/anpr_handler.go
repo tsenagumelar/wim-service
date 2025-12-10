@@ -59,6 +59,7 @@ type xmlResult struct {
 
 type FileProcessor struct {
 	DB               *sql.DB
+	SiteID           string // Site identifier for multi-site deployment
 	RemoteDir        string
 	Minio            *minio.Client
 	Bucket           string
@@ -70,7 +71,7 @@ func (p *FileProcessor) SetDimensionHandler(handler *DimensionHandler) {
 	p.DimensionHandler = handler
 }
 
-func NewFileProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
+func NewFileProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*FileProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -81,6 +82,7 @@ func NewFileProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, buc
 
 	return &FileProcessor{
 		DB:        db,
+		SiteID:    siteID,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -302,12 +304,14 @@ func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata
 
 	query := `
 	INSERT INTO public.transact_anpr_capture
-		(external_id, plate_no, confidence, captured_at,
+		(site_id, external_id, plate_no, confidence, captured_at,
 		 location_code, camera_id,
 		 minio_bucket, minio_date_folder,
-		 minio_xml_object, minio_full_image_object, minio_plate_image_object)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		 minio_xml_object, minio_full_image_object, minio_plate_image_object,
+		 synced_to_central)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false)
 	ON CONFLICT (external_id) DO UPDATE SET
+		site_id = EXCLUDED.site_id,
 		plate_no = EXCLUDED.plate_no,
 		confidence = EXCLUDED.confidence,
 		captured_at = EXCLUDED.captured_at,
@@ -324,6 +328,7 @@ func (p *FileProcessor) insertANPRRecord(ctx context.Context, meta *ANPRMetadata
 	_, err := p.DB.ExecContext(
 		ctx,
 		query,
+		p.SiteID, // NEW: Site identifier
 		meta.ID,
 		meta.Plate,
 		conf,

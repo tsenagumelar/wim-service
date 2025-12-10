@@ -78,12 +78,13 @@ type axleXML struct {
 
 type AxleProcessor struct {
 	DB        *sql.DB
+	SiteID    string // Site identifier for multi-site deployment
 	RemoteDir string
 	Minio     *minio.Client
 	Bucket    string
 }
 
-func NewAxleProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
+func NewAxleProcessor(db *sql.DB, siteID, remoteDir, endpoint, accessKey, secretKey, bucket string, useSSL bool) (*AxleProcessor, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -94,6 +95,7 @@ func NewAxleProcessor(db *sql.DB, remoteDir, endpoint, accessKey, secretKey, buc
 
 	return &AxleProcessor{
 		DB:        db,
+		SiteID:    siteID,
 		RemoteDir: remoteDir,
 		Minio:     mc,
 		Bucket:    bucket,
@@ -277,11 +279,12 @@ func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata
 
 	query := `
       INSERT INTO public.transact_axle_capture
-      (external_id, plate_no, captured_at, camera_id,
+      (site_id, external_id, plate_no, captured_at, camera_id,
        length_mm, total_wheels, total_axles, vehicle_category, vehicle_body_type,
        minio_bucket, minio_date_folder, minio_xml_object, minio_image_object)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       ON CONFLICT (external_id) DO UPDATE SET
+       site_id = EXCLUDED.site_id,
        plate_no = EXCLUDED.plate_no,
        captured_at = EXCLUDED.captured_at,
        camera_id = EXCLUDED.camera_id,
@@ -300,6 +303,7 @@ func (p *AxleProcessor) insertAxleRecord(ctx context.Context, meta *AxleMetadata
 	_, err := p.DB.ExecContext(
 		ctx,
 		query,
+		p.SiteID, // NEW: Site identifier
 		meta.ID,
 		meta.Plate,
 		capturedAt,

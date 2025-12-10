@@ -7,6 +7,9 @@
 - 📏 Vehicle Dimension Detection
 - 🔐 REST API dengan JWT Authentication
 - ☁️ MinIO Storage Integration
+- 🌍 **Multi-Site Architecture** - Deploy di multiple lokasi dengan data terpusat
+
+> **📘 Multi-Site Deployment?** Lihat [MULTI_SITE_ARCHITECTURE.md](MULTI_SITE_ARCHITECTURE.md) untuk panduan lengkap deployment multi-site dengan data terpusat.
 
 ---
 

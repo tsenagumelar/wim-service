@@ -13,9 +13,20 @@ import (
 )
 
 type Config struct {
+	// Site Identification (Multi-Site Support)
+	SiteID       string // Unique identifier for this site (e.g., "SITE001", "JKT-TOLL-01")
+	SiteName     string // Human-readable site name (e.g., "Jakarta Toll Gate 1")
+	SiteLocation string // Location description (e.g., "Jakarta", "Surabaya")
+	SiteRegion   string // Region/Area (e.g., "JABODETABEK", "JATIM")
+
 	// Database
 	DatabaseURL string
 	DB          *sql.DB
+
+	// Central Database (for data synchronization to HQ)
+	CentralDatabaseURL string // Central HQ database URL (optional)
+	CentralDB          *sql.DB
+	SyncEnabled        bool // Enable sync to central database
 
 	// API Config
 	APIPort   string
@@ -74,7 +85,18 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
+		// Site Identification
+		SiteID:       getEnv("SITE_ID", "SITE001"),
+		SiteName:     getEnv("SITE_NAME", "Default Site"),
+		SiteLocation: getEnv("SITE_LOCATION", "Unknown"),
+		SiteRegion:   getEnv("SITE_REGION", "DEFAULT"),
+
+		// Database
 		DatabaseURL: getEnv("DATABASE_URL", ""),
+
+		// Central Database
+		CentralDatabaseURL: getEnv("CENTRAL_DATABASE_URL", ""),
+		SyncEnabled:        getEnvBool("SYNC_ENABLED", false),
 
 		// API Config
 		APIPort:   getEnv("API_PORT", "3000"),
@@ -149,7 +171,27 @@ func Load() (*Config, error) {
 	}
 
 	cfg.DB = db
-	log.Println("[CONFIG] Database connection established")
+	log.Printf("[CONFIG] Database connection established for Site: %s (%s)", cfg.SiteID, cfg.SiteName)
+
+	// Initialize central database connection if sync is enabled
+	if cfg.SyncEnabled && cfg.CentralDatabaseURL != "" {
+		log.Println("[CONFIG] Connecting to central database...")
+		centralDB, err := sql.Open("pgx", cfg.CentralDatabaseURL)
+		if err != nil {
+			log.Printf("[CONFIG] WARNING: Failed to connect to central database: %v", err)
+		} else {
+			centralDB.SetMaxOpenConns(5)
+			centralDB.SetMaxIdleConns(2)
+			centralDB.SetConnMaxLifetime(30 * time.Minute)
+
+			if err := centralDB.Ping(); err != nil {
+				log.Printf("[CONFIG] WARNING: Failed to ping central database: %v", err)
+			} else {
+				cfg.CentralDB = centralDB
+				log.Println("[CONFIG] Central database connection established")
+			}
+		}
+	}
 
 	return cfg, nil
 }
