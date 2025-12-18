@@ -1,263 +1,265 @@
 # WIM Service
 
-**Weigh In Motion Service** - Service untuk monitoring kendaraan melalui ANPR/CCTV Vidar dengan fitur:
+**Weigh In Motion Service** - Service monitoring kendaraan dengan ANPR, AXLE Weight Sensor, dan RTSP Camera Streaming.
 
-- 🚗 ANPR (Automatic Number Plate Recognition) Processing
-- ⚖️ AXLE Weight Processing
-- 📏 Vehicle Dimension Detection
-- 🔐 REST API dengan JWT Authentication
-- ☁️ MinIO Storage Integration
-- 🌍 **Multi-Site Architecture** - Deploy di multiple lokasi dengan data terpusat
+## Tentang Aplikasi
 
-> **📘 Multi-Site Deployment?** Lihat [MULTI_SITE_ARCHITECTURE.md](MULTI_SITE_ARCHITECTURE.md) untuk panduan lengkap deployment multi-site dengan data terpusat.
+WIM Service adalah sistem monitoring kendaraan yang menggabungkan data dari berbagai sensor:
+
+- **ANPR (Automatic Number Plate Recognition)** - Mendeteksi plat nomor kendaraan
+- **AXLE Sensor** - Mengukur jumlah axle dan dimensi kendaraan
+- **RTSP Streaming** - Live streaming dari IP camera
+- **Vehicle Correlation** - Menggabungkan data ANPR dan Axle berdasarkan waktu
+
+Sistem ini support **multi-site deployment** dengan database terpusat.
 
 ---
 
-## 📋 Features
+## Fitur Utama
 
-### 1. **ANPR Processing**
-
-- Monitoring FTP untuk file XML dan gambar ANPR
-- Upload otomatis ke MinIO storage
-- Simpan metadata ke database PostgreSQL
+### 1. ANPR Processing
+- Monitor FTP untuk file XML dan gambar ANPR
+- Upload otomatis ke MinIO storage (optional)
+- Simpan metadata ke PostgreSQL
 - Support multiple camera locations
 
-### 2. **AXLE Weight Processing**
+### 2. AXLE Weight Processing
+- Monitor FTP untuk data axle weight
+- Process XML dari sensor WIM
+- Tanpa data plat nomor (data plat dari ANPR)
 
-- Monitoring FTP untuk data axle weight
-- Process XML data dari sensor WIM
-- Integration dengan MinIO storage
+### 3. Vehicle Data Correlation
+- **Time-based matching** - Gabungkan ANPR + Axle berdasarkan waktu (≤5 detik)
+- **Automatic correlation** - Real-time via database trigger
+- **Bi-directional** - Works apapun yang masuk duluan (ANPR atau Axle)
+- Lihat detail: [Vehicle Correlation](#vehicle-correlation)
 
-### 3. **Vehicle Dimension Detection**
+### 4. RTSP Camera Streaming
+- Stream dari IP camera via WebSocket
+- Support multiple camera feeds
+- H.264 encoding
+- Ready untuk Next.js integration
 
-- Deteksi dimensi kendaraan (panjang, lebar, tinggi) dari gambar ANPR
-- Camera calibration untuk akurasi perhitungan
-- Vehicle classification berdasarkan dimensi
-- Automatic integration dengan ANPR processing
-
-### 4. **REST API with Authentication**
-
-- JWT token-based authentication (expired 3x24 jam)
-- User management
+### 5. REST API + JWT Authentication
+- Token-based auth (expired 72 jam)
 - Protected endpoints
 - CORS enabled
 
+### 6. Multi-Site Architecture
+- Deploy di multiple lokasi
+- Database PostgreSQL terpusat
+- Site configuration per lokasi
+
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-
-- Go 1.24+ (for local development)
-- Docker & Docker Compose (for containerized deployment)
+- Go 1.24+
+- Docker + Docker Compose / Portainer
 - PostgreSQL database
 - MinIO server (optional)
-- FTP server dengan data ANPR/AXLE
+- FTP server untuk ANPR/AXLE data
 
-### Option 1: Portainer Stack Deployment (Recommended)
+### Setup dengan Portainer (Recommended)
 
-**Prerequisites:**
-
-- Portainer sudah terinstall
-- PostgreSQL database sudah tersedia
-- MinIO storage sudah tersedia (optional)
-- FTP server sudah configured
-
-**Steps:**
-
-1. **Build dan Push Docker Image**
-
+1. **Build & Push Docker Image**
 ```bash
-# Clone repository
 git clone https://github.com/tsenagumelar/wim-service.git
 cd wim-service
 
-# Build image dengan tag
 docker build -t tsenagumelar/wim-service:latest .
-
-# Push ke Docker Hub (atau private registry)
 docker push tsenagumelar/wim-service:latest
-
-# Atau dengan versioning
-docker build -t tsenagumelar/wim-service:v1.0.0 .
-docker push tsenagumelar/wim-service:v1.0.0
 ```
 
 2. **Deploy di Portainer**
+- Login ke Portainer → Stacks → Add Stack
+- Copy isi `portainer-stack.yml`
+- Edit environment variables (DATABASE_URL, JWT_SECRET, FTP config, dll)
+- Deploy the stack
 
-- Login ke Portainer UI
-- Pilih **Stacks** → **Add Stack**
-- Nama stack: `wim-service`
-- Build method: **Web editor**
-- Copy isi file `portainer-stack.yml` ke editor
-- **PENTING:** Edit environment variables sesuai setup Anda:
-  - `DATABASE_URL` - connection string PostgreSQL Anda
-  - `JWT_SECRET` - secret key untuk JWT (min 32 karakter)
-  - `ANPR_FTP_*` - konfigurasi FTP server ANPR
-  - `AXLE_FTP_*` - konfigurasi FTP server AXLE
-  - `*_MINIO_*` - konfigurasi MinIO storage
-  - `CAMERA_*` - parameter kalibrasi camera
-- Klik **Deploy the stack**
-
-3. **Verifikasi Deployment**
-
+3. **Verifikasi**
 ```bash
-# Check container logs di Portainer UI atau CLI
-docker logs wim-service
-
-# Test API endpoint
 curl http://localhost:3000/health
-
-# Response:
-# {"status":"ok","service":"wim-service"}
+# Response: {"status":"ok","service":"wim-service"}
 ```
 
 **Default credentials:**
-
 - Username: `admin`
 - Password: `admin123`
 
-**File yang dibutuhkan:**
+### Setup Local Development
 
-- `portainer-stack.yml` - Stack definition untuk Portainer
-- Docker image: `tsenagumelar/wim-service:latest`
-
-### Option 2: Local Development
-
-1. **Clone repository**
-
+1. **Clone & Install**
 ```bash
 git clone https://github.com/tsenagumelar/wim-service.git
 cd wim-service
-```
-
-2. **Install dependencies**
-
-```bash
 go mod download
 ```
 
-3. **Setup environment**
-
+2. **Configuration**
 ```bash
 cp .env.example .env
 # Edit .env dengan konfigurasi Anda
 ```
 
-4. **Run service**
-
+3. **Run**
 ```bash
 go run main.go
 ```
 
-Output:
-
-```
-[MAIN] WIM Service starting...
-[MAIN] Starting API Server...
-[MAIN] API Server: http://localhost:3000
-[MAIN] Login: POST http://localhost:3000/api/auth/login
-[MAIN] Default credentials - username: admin, password: admin123
-[MAIN] Starting ANPR watcher...
-[MAIN] Starting AXLE watcher...
-[MAIN] All services started successfully!
-```
-
-### Option 3: Docker Compose (Development)
-
-Untuk development dengan PostgreSQL dan MinIO lokal:
-
-```bash
-# Clone repository
-git clone https://github.com/tsenagumelar/wim-service.git
-cd wim-service
-
-# Edit docker-compose.yml sesuai kebutuhan
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f wim-service
-
-# Stop services
-docker-compose down
-```
-
-**Services yang berjalan:**
-
-- PostgreSQL: `localhost:5432`
-- MinIO API: `localhost:9000`
-- MinIO Console: `localhost:9001`
-- WIM Service API: `localhost:3000`
-
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-### Environment Variables
-
-Create `.env` file:
+### Required Environment Variables
 
 ```bash
 # Database
-DATABASE_URL="postgres://user:password@host:5432/dbname?sslmode=disable"
+DATABASE_URL="postgres://user:pass@host:5432/dbname?sslmode=disable"
 
 # API Server
 API_PORT=3000
-JWT_SECRET="your-secret-key-change-in-production"
+JWT_SECRET="min-32-karakter-secret-key"
 
-# ANPR FTP Configuration
+# Site Configuration
+SITE_CODE="SITE001"
+SITE_NAME="Lokasi Site 1"
+
+# ANPR FTP
 ANPR_FTP_HOST="192.168.1.100:21"
 ANPR_FTP_USER="ftpuser"
 ANPR_FTP_PASS="ftppass"
 ANPR_FTP_DIR="/anpr/"
 ANPR_FTP_INTERVAL_SEC=5
 
-# AXLE FTP Configuration
+# AXLE FTP
 AXLE_FTP_HOST="192.168.1.100:21"
 AXLE_FTP_USER="ftpuser"
 AXLE_FTP_PASS="ftppass"
 AXLE_FTP_DIR="/axle/"
 AXLE_FTP_INTERVAL_SEC=5
 
-# ANPR MinIO Storage
+# MinIO Storage (optional - kosongkan jika tidak digunakan)
 ANPR_MINIO_ENDPOINT="s3.example.com"
 ANPR_MINIO_ACCESS_KEY="admin"
-ANPR_MINIO_SECRET_KEY="admin12345"
+ANPR_MINIO_SECRET_KEY="password"
 ANPR_MINIO_BUCKET="anpr"
-ANPR_MINIO_USE_SSL=true
+ANPR_MINIO_USE_SSL=false
 
-# AXLE MinIO Storage
 AXLE_MINIO_ENDPOINT="s3.example.com"
 AXLE_MINIO_ACCESS_KEY="admin"
-AXLE_MINIO_SECRET_KEY="admin12345"
+AXLE_MINIO_SECRET_KEY="password"
 AXLE_MINIO_BUCKET="axle"
-AXLE_MINIO_USE_SSL=true
+AXLE_MINIO_USE_SSL=false
 
-# Vehicle Dimension Detection
-DIMENSION_ENABLED=true
-DIMENSION_THRESHOLD=0.5
-DIMENSION_MODEL_PATH=
-
-# Camera Calibration (PENTING untuk akurasi!)
-CAMERA_IMAGE_WIDTH=1920
-CAMERA_IMAGE_HEIGHT=1080
-CAMERA_FOCAL_LENGTH=1000.0
-CAMERA_HEIGHT_METERS=6.0
-CAMERA_TILT_ANGLE=30.0
-CAMERA_REF_PIXEL_LENGTH=1500
-CAMERA_REF_REAL_LENGTH=5.0
-CAMERA_REF_DISTANCE=15.0
+# RTSP Streaming (optional)
+RTSP_ENABLED=true
+RTSP_URL="rtsp://admin:admin@192.168.1.18:554/stream1"
 ```
 
 ---
 
-## 📡 REST API Documentation
+## Vehicle Correlation
+
+### Problem
+- Data ANPR (dengan plat nomor) dan Axle (tanpa plat nomor) masuk terpisah
+- Bagaimana menggabungkan tanpa plate matching?
+
+### Solution: Time-Based Matching
+Sistem otomatis mencocokan berdasarkan:
+1. Same site (`site_id`)
+2. Time difference ≤ 5 seconds (configurable)
+3. Nearest match (yang paling dekat waktunya)
+
+### How It Works
+
+**Scenario Normal:**
+```
+10:00:00 → ANPR detects "B 1234 XYZ"
+           ↓ Search Axle dalam 5 detik → NOT FOUND
+           ↓ Create record: status='ANPR_ONLY'
+
+10:00:03 → Axle measures vehicle (no plate)
+           ↓ Search ANPR dalam 5 detik → FOUND (diff=3s)
+           ↓ Create record: status='MATCHED'
+
+Result: 1 record dengan plate "B 1234 XYZ" + Axle data
+```
+
+### Correlation Status
+| Status | Description |
+|--------|-------------|
+| `MATCHED` | ANPR + Axle berhasil digabung ✅ |
+| `ANPR_ONLY` | ANPR saja, menunggu Axle |
+| `AXLE_ONLY` | Axle saja, plate='UNKNOWN' (rare) |
+
+### Installation
+```bash
+psql -d wim_db -f migrations/200_vehicle_correlation.sql
+```
+
+### Query Examples
+
+**Matched vehicles:**
+```sql
+SELECT * FROM view_vehicle_complete
+WHERE correlation_status = 'MATCHED'
+ORDER BY first_detected_at DESC;
+```
+
+**Match rate per site:**
+```sql
+SELECT
+    site_code,
+    COUNT(*) as total,
+    SUM(CASE WHEN correlation_status = 'MATCHED' THEN 1 ELSE 0 END) as matched,
+    ROUND(100.0 * SUM(CASE WHEN correlation_status = 'MATCHED' THEN 1 ELSE 0 END) / COUNT(*), 2) as match_rate_pct
+FROM view_vehicle_complete
+GROUP BY site_code;
+```
+
+---
+
+## RTSP Streaming
+
+### Cara Kerja
+Server Go convert **RTSP → H.264 → WebSocket** untuk browser.
+
+### WebSocket Endpoint
+```
+ws://localhost:3000/api/rtsp/stream/{stream_id}/ws
+```
+
+Default stream ID: `camera1` (dari env `RTSP_URL`)
+
+### API Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/rtsp/streams` | List all streams |
+| GET | `/api/rtsp/streams/:id/info` | Stream info |
+| POST | `/api/rtsp/streams` | Add new stream |
+| POST | `/api/rtsp/streams/:id/start` | Start stream |
+| POST | `/api/rtsp/streams/:id/stop` | Stop stream |
+| WS | `/api/rtsp/stream/:id/ws` | WebSocket streaming |
+
+### Test dari Browser Console
+```javascript
+const ws = new WebSocket('ws://localhost:3000/api/rtsp/stream/camera1/ws');
+ws.onopen = () => console.log('✅ Connected');
+ws.onmessage = (e) => {
+  const data = JSON.parse(e.data);
+  console.log(data.type); // 'stream_started' or 'frame'
+};
+```
+
+---
+
+## REST API
 
 ### Authentication
 
-#### 1. Login
-
+**Login:**
 ```bash
 POST /api/auth/login
 Content-Type: application/json
@@ -269,347 +271,240 @@ Content-Type: application/json
 ```
 
 **Response:**
-
 ```json
 {
   "success": true,
-  "message": "Login successful",
   "data": {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expires_at": "2025-12-13T14:30:00Z",
+    "expires_at": "2025-12-21T10:00:00Z",
     "user": {
       "id": 1,
       "username": "admin",
-      "email": "admin@wim.local",
       "role": "admin"
     }
   }
 }
 ```
 
-**Token Expiration:** 3x24 jam (72 hours)
-
-#### 2. Get Profile (Protected)
-
+**Get Profile (Protected):**
 ```bash
 GET /api/auth/profile
-Authorization: Bearer <your-jwt-token>
+Authorization: Bearer <token>
 ```
 
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "username": "admin",
-    "email": "admin@wim.local",
-    "role": "admin"
-  }
-}
-```
-
-#### 3. Health Check
-
+**Health Check:**
 ```bash
 GET /health
 ```
 
-**Response:**
-
-```json
-{
-  "status": "ok",
-  "service": "wim-service"
-}
-```
-
 ---
 
-## 📏 Vehicle Dimension Detection
+## Database Schema
 
-### Cara Kerja
+### Main Tables
 
-1. **Vehicle Detection**: Detect kendaraan dalam gambar (bounding box)
-2. **Camera Calibration**: Konversi pixel ke meter
-3. **Dimension Calculation**: Hitung dimensi (panjang, lebar, tinggi)
-4. **Vehicle Classification**: Klasifikasi jenis kendaraan
-
-### Kalibrasi Camera (PENTING!)
-
-Untuk hasil akurat, lakukan kalibrasi:
-
-**Step 1: Ukur Parameter Camera**
-
-- Tinggi camera dari jalan (meter)
-- Sudut tilt camera (derajat)
-- Focal length (dari spesifikasi camera)
-
-**Step 2: Ukur Reference Object**
-
-- Pilih objek referensi (contoh: garis jalan 5 meter)
-- Buka gambar ANPR di image editor
-- Ukur berapa pixel panjang objek tersebut
-- Ukur jarak camera ke objek
-
-**Step 3: Update .env**
-
-```bash
-CAMERA_REF_PIXEL_LENGTH=1500  # Hasil ukuran dalam pixel
-CAMERA_REF_REAL_LENGTH=5.0     # Ukuran sebenarnya (meter)
-CAMERA_REF_DISTANCE=15.0       # Jarak camera ke objek
-```
-
-### Vehicle Classification
-
-| Class      | Length   | Width    | Description           |
-| ---------- | -------- | -------- | --------------------- |
-| motorcycle | < 2.5m   | < 1.5m   | Sepeda Motor          |
-| sedan      | 2.5-5.5m | < 2.0m   | Mobil Penumpang       |
-| suv        | 4.0-6.0m | 1.8-2.2m | SUV/Minivan           |
-| truck      | 5.5-12m  | -        | Truk/Kendaraan Barang |
-| bus        | > 7.0m   | > 2.0m   | Bus/Kendaraan Besar   |
-
-### Testing Dimension Detection
-
-```bash
-# Copy gambar test ke folder root
-cp /path/to/anpr/image.jpg ./test_image.jpg
-
-# Run test
-go run test_dimension.go
-```
-
-**Output:**
-
-```
-=== Processing Image: test_image.jpg ===
-[DIMENSION] Detected 1 vehicle(s)
-
-Vehicle 1:
-  Length: 4.52 meters
-  Width: 1.85 meters
-  Height: 1.11 meters (estimated)
-  Distance from camera: 12.30 meters
-  Confidence: 67%
-  Classification: Mobil Penumpang / Sedan
-```
-
----
-
-## 🗄️ Database Schema
-
-### Table: users
-
+**transact_vehicle** - Vehicle correlation result
 ```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'user',
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+- anpr_id (FK → transact_anpr_capture)
+- axle_id (FK → transact_axle_capture)
+- plate_no (from ANPR only)
+- correlation_status (MATCHED/ANPR_ONLY/AXLE_ONLY)
+- time_diff_seconds
 ```
 
-### Table: transact_anpr_capture
-
+**view_vehicle_complete** - Complete vehicle data view
 ```sql
--- Existing ANPR table with additional dimension columns
-ALTER TABLE transact_anpr_capture
-ADD COLUMN vehicle_length DECIMAL(10, 3),
-ADD COLUMN vehicle_width DECIMAL(10, 3),
-ADD COLUMN vehicle_height DECIMAL(10, 3),
-ADD COLUMN vehicle_class VARCHAR(50),
-ADD COLUMN dimension_confidence DECIMAL(5, 4);
+SELECT * FROM view_vehicle_complete
+-- Auto-JOIN ANPR + Axle + Site data
 ```
 
-### Table: vehicle_dimensions
-
+**Site configuration:**
 ```sql
-CREATE TABLE vehicle_dimensions (
-    id SERIAL PRIMARY KEY,
-    image_path VARCHAR(500),
-    length_meters DECIMAL(10, 3),
-    width_meters DECIMAL(10, 3),
-    height_meters DECIMAL(10, 3),
-    distance_meters DECIMAL(10, 3),
-    confidence DECIMAL(5, 4),
-    vehicle_class VARCHAR(50),
-    class_description VARCHAR(200),
-    center_x INT,
-    center_y INT,
-    processed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE site (
+    id uuid PRIMARY KEY,
+    code varchar(50) UNIQUE,
+    name varchar(200)
 );
 ```
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 wim-service/
-├── main.go                          # Entry point - All services
-├── test_dimension.go                # Test dimension detection
-├── .env                             # Environment configuration
-├── go.mod                           # Go dependencies
+├── main.go                    # Entry point
+├── .env.example               # Environment template
+├── portainer-stack.yml        # Portainer deployment
+├── migrations/
+│   └── 200_vehicle_correlation.sql
 ├── internal/
-│   ├── api/                         # REST API
-│   │   ├── server.go                # API server setup
-│   │   └── auth_handler.go          # Auth endpoints
-│   ├── auth/                        # Authentication
-│   │   ├── types.go                 # Auth types
-│   │   ├── jwt.go                   # JWT helpers
-│   │   └── service.go               # Auth service
-│   ├── config/                      # Configuration
-│   │   ├── config.go                # Config loader
-│   │   └── calibration.go           # Camera calibration
-│   ├── ftpwatcher/                  # FTP monitoring
-│   │   └── watcher.go               # FTP watcher
-│   ├── handler/                     # Business logic
-│   │   ├── anpr_handler.go          # ANPR processing
-│   │   ├── axle_handler.go          # AXLE processing
-│   │   └── dimension_handler.go     # Dimension processing
-│   └── vision/                      # Computer vision
-│       ├── types.go                 # Vision types
-│       ├── detector.go              # Vehicle detection
-│       ├── calibration.go           # Camera calibration
-│       └── dimension.go             # Dimension calculation
-└── README.md                        # This file
+│   ├── api/                   # REST API
+│   ├── auth/                  # JWT Authentication
+│   ├── config/                # Configuration loader
+│   ├── ftpwatcher/            # FTP monitoring
+│   ├── handler/               # Business logic (ANPR, Axle)
+│   └── rtspstream/            # RTSP streaming
+├── README.md                  # This file
+└── DEVELOPMENT_GUIDE.md       # Development guide
 ```
 
 ---
 
-## 🔧 Advanced Usage
+## Multi-Site Deployment
 
-### Custom Vehicle Detection
+Untuk deployment di multiple site dengan data terpusat:
 
-Saat ini menggunakan mock detection. Untuk production, integrate dengan:
+1. Setup PostgreSQL terpusat (cloud/VPS)
+2. Deploy service di setiap site
+3. Setiap site punya:
+   - `SITE_CODE` unik (contoh: SITE001, SITE002)
+   - FTP config lokal
+   - Database connection ke server pusat
 
-- **YOLO** (You Only Look Once)
-- **OpenCV DNN**
-- **TensorFlow**
-- **ONNX Runtime**
+**Example:**
 
-### Multiple Camera Support
-
-Service sudah support multiple camera:
-
-- Setiap camera punya konfigurasi FTP sendiri
-- Kalibrasi per camera location
-- Automatic classification per lokasi
-
-### Monitoring & Logging
-
-Semua activity di-log dengan format:
-
-```
-[COMPONENT] Message
+Site A:
+```bash
+SITE_CODE=SITE001
+SITE_NAME="Jakarta Toll Gate 1"
+DATABASE_URL=postgres://user@central-server:5432/wim_db
 ```
 
-Components:
+Site B:
+```bash
+SITE_CODE=SITE002
+SITE_NAME="Bandung Toll Gate 2"
+DATABASE_URL=postgres://user@central-server:5432/wim_db
+```
 
-- `[MAIN]` - Main application
-- `[API]` - API server
-- `[AUTH]` - Authentication
-- `[ANPR]` - ANPR processing
-- `[AXLE]` - AXLE processing
-- `[DIMENSION]` - Dimension detection
-- `[CONFIG]` - Configuration
+Query data from all sites:
+```sql
+SELECT site_code, COUNT(*) FROM view_vehicle_complete
+GROUP BY site_code;
+```
 
 ---
 
-## 🐛 Troubleshooting
+## Monitoring
 
-### 1. Dimensi Tidak Akurat
+### Match Rate (per site)
+```sql
+SELECT
+    site_code,
+    COUNT(*) as total,
+    ROUND(100.0 * SUM(CASE WHEN correlation_status = 'MATCHED' THEN 1 ELSE 0 END) / COUNT(*), 2) as match_rate
+FROM view_vehicle_complete
+GROUP BY site_code;
+```
 
-**Solusi:**
+Expected match rate: **85-95%**
 
-- Check parameter kalibrasi di `.env`
-- Ukur ulang reference object dengan teliti
-- Pastikan `CAMERA_REF_PIXEL_LENGTH` sesuai dengan gambar
-- Test dengan kendaraan yang dimensinya sudah diketahui
-
-### 2. API Server Error
-
-**Solusi:**
-
-- Check `API_PORT` tidak digunakan aplikasi lain
-- Verifikasi database connection string
-- Check JWT_SECRET sudah di-set
-
-### 3. FTP Connection Failed
-
-**Solusi:**
-
-- Verifikasi FTP credentials
-- Check firewall/network connectivity
-- Test FTP connection manual dengan FileZilla
-
-### 4. Token Expired
-
-**Solusi:**
-
-- Login ulang untuk mendapatkan token baru
-- Token valid 72 jam (3x24 jam)
-- Check system time/timezone
+### Pending ANPR (waiting for Axle)
+```sql
+SELECT COUNT(*) FROM view_vehicle_complete
+WHERE correlation_status = 'ANPR_ONLY'
+AND first_detected_at < NOW() - INTERVAL '1 minute';
+```
 
 ---
 
-## 📈 Performance Tips
+## Troubleshooting
 
-1. **Database Indexing**
+### Low Match Rate (<80%)
+**Check:**
+1. Time sync (NTP) di sistem ANPR dan Axle
+2. Time window setting (default 5s)
+3. Both systems capturing data
 
+**Solution:**
+```sql
+-- Check time distribution
+SELECT
+    CASE
+        WHEN time_diff_seconds < 2 THEN '<2s'
+        WHEN time_diff_seconds < 5 THEN '2-5s'
+        WHEN time_diff_seconds < 10 THEN '5-10s'
+        ELSE '>10s'
+    END as time_bucket,
+    COUNT(*) as count
+FROM view_vehicle_complete
+WHERE correlation_status = 'MATCHED'
+GROUP BY time_bucket;
+```
+
+### FTP Connection Failed
+**Solution:**
+- Verify credentials di `.env`
+- Check network/firewall
+- Test manual dengan FileZilla
+- Check FTP logs di console output
+
+### RTSP Stream Timeout
+**Solution:**
+- Test RTSP URL dengan VLC: `vlc rtsp://...`
+- Verify camera IP reachable: `ping 192.168.1.18`
+- Check credentials dan port
+- Verify `RTSP_ENABLED=true` di `.env`
+
+### MinIO Upload Failed
+**Note:** MinIO adalah **optional**. Jika tidak ada MinIO server:
+- Set semua `*_MINIO_*` variables ke empty string
+- Aplikasi akan tetap jalan, tapi tidak upload file ke storage
+- File XML dan metadata tetap tersimpan di database
+
+---
+
+## Performance Tips
+
+### 1. Database Indexing
 ```sql
 CREATE INDEX idx_anpr_plate ON transact_anpr_capture(plate_no);
 CREATE INDEX idx_anpr_captured ON transact_anpr_capture(captured_at);
-CREATE INDEX idx_dimensions_processed ON vehicle_dimensions(processed_at);
+CREATE INDEX idx_axle_captured ON transact_axle_capture(captured_at);
+CREATE INDEX idx_vehicle_status ON transact_vehicle(correlation_status);
+CREATE INDEX idx_vehicle_site ON transact_vehicle(site_id);
 ```
 
-2. **FTP Polling Interval**
-
+### 2. FTP Polling Interval
 - Adjust `ANPR_FTP_INTERVAL_SEC` sesuai traffic
-- Default 5 detik cukup untuk most cases
+- Default 5 detik recommended
+- Jangan terlalu cepat (<2 detik) karena bisa overload
 
-3. **MinIO Connection Pool**
+### 3. Database Connection Pool
+```sql
+-- Check active connections
+SELECT count(*) FROM pg_stat_activity;
 
-- Service sudah optimize connection reuse
-- Monitor MinIO performance dashboard
-
----
-
-## 🤝 Contributing
-
-1. Fork repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
+-- Recommended settings di PostgreSQL
+max_connections = 100
+shared_buffers = 256MB
+```
 
 ---
 
-## 📝 License
+## Development
 
-This project is proprietary software.
+Untuk development guide lengkap, lihat [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)
+
+Includes:
+- Setup development environment
+- Cara menjalankan aplikasi (4 options)
+- Testing (API, Correlation, RTSP, Database)
+- **Bagian yang perlu diperbaiki** (Critical/Medium/Low priority)
+- Next.js frontend integration dengan code examples
 
 ---
 
-## 👤 Author
+## License
+
+Proprietary software.
+
+## Author
 
 **Taufan Senagumelar**
-
 - GitHub: [@tsenagumelar](https://github.com/tsenagumelar)
 - Repository: [wim-service](https://github.com/tsenagumelar/wim-service)
-
----
-
-## 📞 Support
-
-Untuk pertanyaan dan support, silakan buat issue di GitHub repository.
 
 ---
 

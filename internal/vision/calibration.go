@@ -136,6 +136,13 @@ func (cc *CameraCalibration) CalculateGroundDimensions(bbox BoundingBox) (*Vehic
 	length := cc.PixelsToMeters(bbox.Width, distance) // Width pixel → Length (panjang kendaraan)
 	width := cc.PixelsToMeters(bbox.Height, distance) // Height pixel → Width (lebar kendaraan)
 
+	// CORRECTION: Apply vertical scale factor for width
+	// Vertical measurements need different scaling due to camera perspective
+	// Empirically determined: vertical measurements are ~1.47x oversized (2.64m / 1.8m)
+	// Correction factor: 0.68 (to scale 2.64m down to 1.8m)
+	verticalScaleFactor := 0.68
+	width = width * verticalScaleFactor
+
 	// Height estimation (simplified - assumes vehicle height proportional to length)
 	// For better accuracy, need side-view camera or 3D reconstruction
 	height := length * 0.4 // Rough estimate: vehicles are typically 40% as tall as long
