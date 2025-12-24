@@ -61,6 +61,13 @@ type Config struct {
 	AxleMinIOBucket   string
 	AxleMinIOUseSSL   bool
 
+	// MinIO Config for ATTACHMENT
+	AttachmentMinIOEndpoint string
+	AttachmentMinIOAccess   string
+	AttachmentMinIOSecret   string
+	AttachmentMinIOBucket   string
+	AttachmentMinIOUseSSL   bool
+
 	// Vehicle Dimension Detection Config
 	DimensionEnabled   bool    // Enable dimension detection
 	DimensionModelPath string  // Path to detection model (if using ML model)
@@ -100,7 +107,7 @@ func Load() (*Config, error) {
 		SyncEnabled:        getEnvBool("SYNC_ENABLED", false),
 
 		// API Config
-		APIPort:   getEnv("API_PORT", "3000"),
+		APIPort:   getEnv("API_PORT", "4000"),
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 
 		// ANPR FTP
@@ -130,6 +137,13 @@ func Load() (*Config, error) {
 		AxleMinIOSecret:   getEnv("AXLE_MINIO_SECRET_KEY", "admin12345"),
 		AxleMinIOBucket:   getEnv("AXLE_MINIO_BUCKET", "axle"),
 		AxleMinIOUseSSL:   getEnvBool("AXLE_MINIO_USE_SSL", true),
+
+		// ATTACHMENT MinIO
+		AttachmentMinIOEndpoint: getEnv("ATTACHMENT_MINIO_ENDPOINT", "s3minio.activa.id"),
+		AttachmentMinIOAccess:   getEnv("ATTACHMENT_MINIO_ACCESS_KEY", "admin"),
+		AttachmentMinIOSecret:   getEnv("ATTACHMENT_MINIO_SECRET_KEY", "admin12345"),
+		AttachmentMinIOBucket:   getEnv("ATTACHMENT_MINIO_BUCKET", "attachment"),
+		AttachmentMinIOUseSSL:   getEnvBool("ATTACHMENT_MINIO_USE_SSL", true),
 
 		// Vehicle Dimension Detection
 		DimensionEnabled:   getEnvBool("DIMENSION_ENABLED", false),

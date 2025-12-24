@@ -114,7 +114,7 @@ Edit `.env`:
 DATABASE_URL="postgres://wim_user:password@localhost:5432/wim_db?sslmode=disable"
 
 # API
-API_PORT=3000
+API_PORT=4000
 JWT_SECRET="dev-secret-key-change-in-production-min-32-chars"
 
 # Site
@@ -169,8 +169,8 @@ go run main.go
 [MAIN] Site: DEV001 - Development Site
 [CONFIG] Loaded configuration
 [MAIN] Starting API Server...
-[MAIN] API Server: http://localhost:3000
-[MAIN] Login: POST http://localhost:3000/api/auth/login
+[MAIN] API Server: http://localhost:4000
+[MAIN] Login: POST http://localhost:4000/api/auth/login
 [MAIN] Default credentials - username: admin, password: admin123
 [MAIN] Starting ANPR watcher...
 [MAIN] Starting AXLE watcher...
@@ -214,7 +214,7 @@ docker-compose down
 ### 1. Test API - Health Check
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 ```
 
 Expected:
@@ -226,7 +226,7 @@ Expected:
 ### 2. Test API - Login
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
@@ -249,7 +249,7 @@ Expected:
 
 ```bash
 # Ganti <TOKEN> dengan token dari login
-curl http://localhost:3000/api/auth/profile \
+curl http://localhost:4000/api/auth/profile \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -283,19 +283,19 @@ LIMIT 5;
 **List streams:**
 
 ```bash
-curl http://localhost:3000/api/rtsp/streams
+curl http://localhost:4000/api/rtsp/streams
 ```
 
 **Get stream info:**
 
 ```bash
-curl http://localhost:3000/api/rtsp/streams/camera1/info
+curl http://localhost:4000/api/rtsp/streams/camera1/info
 ```
 
 **Test WebSocket (browser console):**
 
 ```javascript
-const ws = new WebSocket("ws://localhost:3000/api/rtsp/stream/camera1/ws");
+const ws = new WebSocket("ws://localhost:4000/api/rtsp/stream/camera1/ws");
 ws.onopen = () => console.log("✅ Connected");
 ws.onmessage = (e) => {
   const data = JSON.parse(e.data);
@@ -558,7 +558,7 @@ wim-frontend/
 **File:** `lib/api.ts`
 
 ```typescript
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export async function login(username: string, password: string) {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -603,7 +603,7 @@ interface UseRTSPStreamReturn {
 
 export function useRTSPStream(
   streamId: string,
-  serverUrl: string = "ws://localhost:3000"
+  serverUrl: string = "ws://localhost:4000"
 ): UseRTSPStreamReturn {
   const [connected, setConnected] = useState(false);
   const [frameCount, setFrameCount] = useState(0);
@@ -677,7 +677,7 @@ interface RTSPPlayerProps {
 export default function RTSPPlayer({
   streamId,
   title,
-  serverUrl = "ws://localhost:3000",
+  serverUrl = "ws://localhost:4000",
 }: RTSPPlayerProps) {
   const { connected, frameCount, fps, error } = useRTSPStream(
     streamId,
@@ -760,12 +760,12 @@ export default function CameraPage() {
           <RTSPPlayer
             streamId="camera1"
             title="Camera 1 - Entry"
-            serverUrl="ws://localhost:3000"
+            serverUrl="ws://localhost:4000"
           />
           <RTSPPlayer
             streamId="camera2"
             title="Camera 2 - Exit"
-            serverUrl="ws://localhost:3000"
+            serverUrl="ws://localhost:4000"
           />
         </div>
       </div>
@@ -779,8 +779,8 @@ export default function CameraPage() {
 **File:** `.env.local`
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_WS_URL=ws://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_WS_URL=ws://localhost:4000
 ```
 
 ### 6. Run Next.js

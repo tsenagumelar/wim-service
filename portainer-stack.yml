@@ -5,13 +5,13 @@ services:
     image: taufansenagumelar/wim-service:latest
     container_name: wim-service
     ports:
-      - "3000:3000"
+      - "4000:4000"
     environment:
       # Database - SESUAIKAN dengan PostgreSQL Anda
       DATABASE_URL: "postgres://wim_user:wim_password_123@postgres:5432/wim_db?sslmode=disable"
 
       # API Configuration
-      API_PORT: 3000
+      API_PORT: 4000
       JWT_SECRET: "your-jwt-secret-key-min-32-chars-change-this"
 
       # ANPR FTP Configuration - SESUAIKAN dengan FTP server Anda

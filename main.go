@@ -33,14 +33,28 @@ func main() {
 		log.Printf("[MAIN] Note: %v (user might already exist)", err)
 	}
 
+	// Create attachment handler
+	attachmentHandler, err := handler.NewAttachmentHandler(
+		cfg.AttachmentMinIOEndpoint,
+		cfg.AttachmentMinIOAccess,
+		cfg.AttachmentMinIOSecret,
+		cfg.AttachmentMinIOBucket,
+		cfg.AttachmentMinIOUseSSL,
+	)
+	if err != nil {
+		log.Fatal("[MAIN] Failed to create attachment handler:", err)
+	}
+	log.Printf("[MAIN] Attachment MinIO: %s, Bucket: %s", cfg.AttachmentMinIOEndpoint, cfg.AttachmentMinIOBucket)
+
 	// Start API Server in goroutine
-	apiServer := api.NewServer(cfg.DB, cfg.JWTSecret)
+	apiServer := api.NewServer(cfg.DB, cfg.JWTSecret, attachmentHandler)
 	go func() {
 		log.Println("[MAIN] Starting API Server...")
 		log.Printf("[MAIN] API Server: http://localhost:%s", cfg.APIPort)
 		log.Printf("[MAIN] Health check: http://localhost:%s/health", cfg.APIPort)
 		log.Printf("[MAIN] Login: POST http://localhost:%s/api/auth/login", cfg.APIPort)
 		log.Printf("[MAIN] Profile: GET http://localhost:%s/api/auth/profile", cfg.APIPort)
+		log.Printf("[MAIN] Upload Image: POST http://localhost:%s/api/attachment/upload", cfg.APIPort)
 		log.Println("[MAIN] Default credentials - username: admin, password: admin123")
 		if err := apiServer.Start(cfg.APIPort); err != nil {
 			log.Printf("[MAIN] API Server error: %v", err)
