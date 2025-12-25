@@ -66,16 +66,10 @@ func (s *Server) setupRoutes() {
 	protected.Use(JWTMiddleware(s.AuthService))
 	protected.Get("/profile", s.AuthHandler.GetProfile)
 
-	// Attachment upload routes
+	// Attachment upload routes (protected - requires JWT)
 	attachment := api.Group("/attachment")
-
-	// Public upload endpoint (no auth required)
+	attachment.Use(JWTMiddleware(s.AuthService))
 	attachment.Post("/upload", s.AttachmentHandler.UploadImage)
-
-	// Protected upload endpoint (requires JWT)
-	attachmentProtected := attachment.Group("/secure")
-	attachmentProtected.Use(JWTMiddleware(s.AuthService))
-	attachmentProtected.Post("/upload", s.AttachmentHandler.UploadImage)
 }
 
 func (s *Server) Start(port string) error {
